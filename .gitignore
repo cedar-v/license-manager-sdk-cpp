@@ -1,0 +1,32 @@
+# Build outputs
+build/
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.so
+*.dylib
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+_deps/
+
+# IDE / Editor / Agent
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.ai/
+
+# Project-specific junk
+hello.cpp
+docs/需求.md
