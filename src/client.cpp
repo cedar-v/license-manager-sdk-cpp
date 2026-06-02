@@ -95,12 +95,12 @@ std::error_code Client::initialize(const Config& config, Options& opts) {
     on_license_updated_ = std::move(opts.on_license_updated);
     on_heartbeat_error_ = std::move(opts.on_heartbeat_error);
     on_activation_required_ = std::move(opts.on_activation_required);
+    on_public_key_updated_ = std::move(opts.on_public_key_updated);
 
     // Bootstrap: try loading existing license
     err = load_existing_license();
     if (!err && current_license_.has_value()) {
-        logger_->infof("Loaded cached license, expires at: %s",
-            std::chrono::system_clock::to_time_t(current_license_->expires_at));
+        logger_->infof("Loaded cached license (key: %s)", current_license_->license_key.c_str());
 
         if (!config_.offline) {
             err = start_heartbeat();
@@ -135,6 +135,12 @@ std::error_code Client::initialize(const Config& config, Options& opts) {
 }
 
 std::error_code Client::load_existing_license() {
+    // Load persisted public key first (for per_license mode)
+    std::string stored_pub_key = read_stored_pub_key();
+    if (!stored_pub_key.empty()) {
+        validator_->set_public_key(stored_pub_key);
+    }
+
     auto [data, err] = storage_->load();
     if (err) {
         if (err == make_error_code(Errc::storage_file_not_found)) {
@@ -156,11 +162,16 @@ std::error_code Client::load_existing_license() {
 std::error_code Client::perform_activation() {
     logger_->infof("Activating with server: %s", config_.server.c_str());
 
-    // Build device info
-    std::map<std::string, std::any> device_info = config_.device_info;
+    // Build device info — match Python SDK structure: {"hardware": {field: value}}
+    std::map<std::string, std::any> hardware_info;
     for (const auto& [k, v] : fingerprint_details_) {
-        device_info["hardware_" + k] = v;
+        hardware_info[k] = v;
     }
+    std::map<std::string, std::any> device_info;
+    for (const auto& [k, v] : config_.device_info) {
+        device_info[k] = v;
+    }
+    device_info["hardware"] = hardware_info;
 
     ActivateRequest request;
     request.authorization_code = config_.authorization_code;
@@ -182,7 +193,7 @@ std::error_code Client::perform_activation() {
     }
 
     // Apply the license file
-    err = apply_license_file(response.license_file);
+    err = apply_license_file_impl(response.license_file, response.public_key);
     if (err) {
         return err;
     }
@@ -194,6 +205,11 @@ std::error_code Client::perform_activation() {
 }
 
 std::error_code Client::apply_license_file(const std::string& base64_license) {
+    return apply_license_file_impl(base64_license, std::nullopt);
+}
+
+std::error_code Client::apply_license_file_impl(const std::string& base64_license,
+                                                  const std::optional<std::string>& new_pub_key) {
     // Base64 decode
     std::vector<uint8_t> decoded;
     auto base64_decode = [](const std::string& encoded) -> std::pair<std::vector<uint8_t>, std::error_code> {
@@ -230,6 +246,25 @@ std::error_code Client::apply_license_file(const std::string& base64_license) {
         return decode_err;
     }
 
+    // Apply new public key if provided
+    if (new_pub_key && !new_pub_key->empty()) {
+        try {
+            validator_->set_public_key(*new_pub_key);
+            logger_->infof("Public key updated from server response");
+            auto save_err = save_pub_key(*new_pub_key);
+            if (save_err) {
+                logger_->warnf("Failed to persist public key: %s", save_err.message().c_str());
+            }
+            if (on_public_key_updated_) {
+                on_public_key_updated_(*new_pub_key);
+            }
+        } catch (const std::exception& e) {
+            logger_->warnf("Failed to update validator public key: %s", e.what());
+        }
+    } else {
+        logger_->infof("No public key in server response, using initial key");
+    }
+
     // Validate and store
     auto [payload, verify_err] = validate_and_store(decoded_data);
     if (verify_err) {
@@ -246,16 +281,90 @@ std::error_code Client::apply_license_file(const std::string& base64_license) {
     return {};
 }
 
+std::string Client::read_stored_pub_key() const {
+    std::string path = pub_key_path();
+    FILE* fp = fopen(path.c_str(), "rb");
+    if (!fp) return {};
+    fseek(fp, 0, SEEK_END);
+    long size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    if (size <= 0) { fclose(fp); return {}; }
+    std::string result(static_cast<size_t>(size), '\0');
+    size_t read_bytes = fread(result.data(), 1, static_cast<size_t>(size), fp);
+    fclose(fp);
+    if (read_bytes != static_cast<size_t>(size)) return {};
+    // Remove trailing whitespace/newlines
+    while (!result.empty() && (result.back() == '\n' || result.back() == '\r')) {
+        result.pop_back();
+    }
+    return result;
+}
+
+std::string Client::pub_key_path() const {
+    std::string base = config_.get_storage_path();
+    size_t dot = base.find_last_of('.');
+    if (dot != std::string::npos) {
+        base = base.substr(0, dot);
+    }
+    return base + ".pubkey";
+}
+
+std::error_code Client::save_pub_key(const std::string& pub_key_pem) const {
+    std::string path = pub_key_path();
+    std::string dir;
+    size_t pos = path.find_last_of("/\\");
+    if (pos != std::string::npos) {
+        dir = path.substr(0, pos);
+    }
+
+    std::vector<uint8_t> data(pub_key_pem.begin(), pub_key_pem.end());
+    std::string tmp_path = path + ".tmp";
+    FILE* fp = fopen(tmp_path.c_str(), "wb");
+    if (!fp) {
+        return make_error_code(Errc::storage_write_error);
+    }
+    size_t written = fwrite(data.data(), 1, data.size(), fp);
+    fclose(fp);
+    if (written != data.size()) {
+        std::remove(tmp_path.c_str());
+        return make_error_code(Errc::storage_write_error);
+    }
+    if (std::rename(tmp_path.c_str(), path.c_str()) != 0) {
+#ifdef _WIN32
+        if (!CopyFileA(tmp_path.c_str(), path.c_str(), FALSE)) {
+            std::remove(tmp_path.c_str());
+            return make_error_code(Errc::storage_write_error);
+        }
+        DeleteFileA(tmp_path.c_str());
+#else
+        std::remove(tmp_path.c_str());
+        return make_error_code(Errc::storage_write_error);
+#endif
+    }
+    return {};
+}
+
 std::pair<LicensePayload, std::error_code>
 Client::validate_and_store(const std::vector<uint8_t>& data) {
+    // Log raw data for debugging
+    std::string raw_str(data.begin(), data.end());
+    if (raw_str.size() > 500) {
+        logger_->infof("[VERIFY] Raw data (first 500): %s...", raw_str.substr(0, 500).c_str());
+    } else {
+        logger_->infof("[VERIFY] Raw data: %s", raw_str.c_str());
+    }
+
     // Normalize: trim whitespace, detect if base64 encoded
     std::vector<uint8_t> normalized = normalize_license_bytes(data);
 
     // Verify
     auto [payload, err] = validator_->verify(normalized, fingerprint_);
     if (err) {
+        logger_->warnf("License verification failed: %s", err.message().c_str());
         return {{}, err};
     }
+
+    logger_->infof("License verified successfully, key: %s", payload.license_key);
 
     // Store
     err = storage_->save(normalized);

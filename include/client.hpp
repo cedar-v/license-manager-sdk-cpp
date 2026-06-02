@@ -20,6 +20,7 @@ public:
     using LicenseUpdatedCallback = std::function<void(const LicensePayload&)>;
     using HeartbeatErrorCallback = std::function<void(const std::error_code&)>;
     using ActivationRequiredCallback = std::function<void(const std::string&)>;
+    using PublicKeyUpdatedCallback = std::function<void(const std::string&)>;
 
     // Options for client construction
     struct Options {
@@ -29,6 +30,7 @@ public:
         LicenseUpdatedCallback on_license_updated;
         HeartbeatErrorCallback on_heartbeat_error;
         ActivationRequiredCallback on_activation_required;
+        PublicKeyUpdatedCallback on_public_key_updated;
     };
 
     // Factory method returning expected
@@ -81,6 +83,10 @@ private:
     std::error_code apply_license_file(const std::string& base64_license);
     std::pair<LicensePayload, std::error_code> validate_and_store(const std::vector<uint8_t>& data);
     std::vector<uint8_t> normalize_license_bytes(const std::vector<uint8_t>& raw) const;
+    std::string pub_key_path() const;
+    std::string read_stored_pub_key() const;
+    std::error_code save_pub_key(const std::string& pub_key_pem) const;
+    std::error_code apply_license_file_impl(const std::string& base64_license, const std::optional<std::string>& new_pub_key);
 
     Config config_;
     std::shared_ptr<Logger> logger_;
@@ -100,6 +106,7 @@ private:
     LicenseUpdatedCallback on_license_updated_;
     HeartbeatErrorCallback on_heartbeat_error_;
     ActivationRequiredCallback on_activation_required_;
+    PublicKeyUpdatedCallback on_public_key_updated_;
 };
 
 } // namespace license_manager

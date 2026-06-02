@@ -20,7 +20,7 @@ include(FetchContent)
 # nlohmann/json (header-only)
 FetchContent_Declare(
     nlohmann_json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/_deps/nlohmann_json-src
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 FetchContent_MakeAvailable(nlohmann_json)
@@ -28,7 +28,7 @@ FetchContent_MakeAvailable(nlohmann_json)
 # spdlog (header-only)
 FetchContent_Declare(
     spdlog
-    URL https://github.com/gabime/spdlog/archive/refs/tags/v1.12.0.tar.gz
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/_deps/spdlog-src
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
 # Suppress spdlog warnings
@@ -75,6 +75,8 @@ target_link_libraries(license-manager PUBLIC
     OpenSSL::Crypto
     nlohmann_json::nlohmann_json
     spdlog::spdlog
+    ws2_32
+    iphlpapi
 )
 
 # Compiler flags
@@ -102,6 +104,9 @@ target_compile_options(basic-example PRIVATE
         -Wall -Wextra
     >
 )
+
+# Copy license_code directory to build directory so example can find it
+file(COPY ${CMAKE_SOURCE_DIR}/license_code DESTINATION ${CMAKE_BINARY_DIR})
 
 # Installation rules
 install(TARGETS license-manager

@@ -20,11 +20,29 @@ C++ 移植版 SDK，用于与 ThingsPanel License Manager 服务端进行许可�
 
 ### Windows（MSYS2 / MinGW）
 
+MSYS2 是 Windows 下推荐的方式，先安装依赖：
+
 ```bash
-mkdir build && cd build
-cmake .. -G "MinGW Makefiles"
-mingw32-make -j4
+# 在 MSYS2 MinGW64 终端中执行
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-openssl mingw-w64-x86_64-libcurl
 ```
+
+然后在 **PowerShell / CMD** 中使用 MSYS2 的工具链：
+
+```powershell
+# 方式一：使用 MSYS2 自带的 cmake（推荐）
+C:\msys64\mingw64\bin\cmake.exe -G "MinGW Makefiles" -S . -B build
+C:\msys64\mingw64\bin\cmake.exe --build build --target basic-example -j4
+
+# 方式二：指定 MSYS2 的 GCC 编译器（解决 stdlib.h 找不到的问题）
+C:\msys64\mingw64\bin\cmake.exe -G "MinGW Makefiles" ^
+    -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/g++.exe ^
+    -DCMAKE_C_COMPILER=C:/msys64/mingw64/bin/gcc.exe ^
+    -S . -B build
+C:\msys64\mingw64\bin\cmake.exe --build build --target basic-example -j4
+```
+
+> **注意**：`basic-example` 是交互式测试工具，运行前请先在 `examples/basic.cpp` 中修改服务器地址和产品标识。
 
 ### Windows（Visual Studio）
 
@@ -43,6 +61,27 @@ make -j$(nproc)
 ```
 
 ## 快速开始
+
+### 交互式测试工具
+
+`examples/basic.cpp` 提供了一个交互式菜单，方便不写代码也能测试 SDK 功能：
+
+```
+========== 主菜单 ==========
+  1) 查看当前配置
+  2) 修改配置
+  3) 激活许可证 (activate)
+  4) 校验许可证 (validate)
+  5) 查看许可证信息
+  6) 发送一次心跳
+  7) 启动自动心跳循环
+  8) 暂停心跳
+  9) 恢复心跳
+  0) 退出程序
+=============================
+```
+
+编译后运行 `build/bin/basic-example`，按提示操作即可。运行前请先修改文件中的 `server`、`product`、`version` 和授权码/公钥文件路径。
 
 ### 1. 准备授权码文件
 

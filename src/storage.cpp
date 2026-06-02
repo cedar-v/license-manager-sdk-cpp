@@ -1,6 +1,13 @@
 #include "storage.hpp"
 #include <cstdio>
 #include <algorithm>
+#include <cstring>
+#include <errno.h>
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <sys/stat.h>
+#endif
 #include <openssl/aes.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
@@ -184,18 +191,39 @@ std::optional<std::vector<uint8_t>> FileStorage::maybe_decrypt(std::span<const u
 }
 
 std::error_code FileStorage::write_atomic(const std::string& path, std::span<const uint8_t> data) {
-    // Create directory if needed
+    std::string file_path = path;
+    // Recursively create directories if needed
     std::string dir;
     size_t pos = path.find_last_of("/\\");
     if (pos != std::string::npos) {
         dir = path.substr(0, pos);
-        // Simple directory creation (no recursive, assume parent exists)
-        // For full recursive, use platform-specific code
+    } else {
+        dir = ".";
     }
 
-    std::string tmp_path = path + ".tmp";
+    if (!dir.empty() && dir != ".") {
+        // Build path component by component
+        size_t last_sep = 0;
+        for (size_t i = 0; i <= dir.size(); ++i) {
+            if (i == dir.size() || dir[i] == '/' || dir[i] == '\\') {
+                if (i > last_sep) {
+                    std::string part = dir.substr(0, i);
+#ifdef _WIN32
+                    BOOL r = ::CreateDirectoryA(part.c_str(), nullptr);
+                    (void)r; // Ignore "already exists" error
+#else
+                    mkdir(part.c_str(), 0755);
+#endif
+                }
+                last_sep = i + 1;
+            }
+        }
+    }
+
+    std::string tmp_path = file_path + ".tmp";
     FILE* fp = fopen(tmp_path.c_str(), "wb");
     if (!fp) {
+        fprintf(stderr, "[STORAGE] fopen failed: errno=%d strerror=%s\n", errno, strerror(errno));
         return make_error_code(Errc::storage_write_error);
     }
 
@@ -207,10 +235,20 @@ std::error_code FileStorage::write_atomic(const std::string& path, std::span<con
         return make_error_code(Errc::storage_write_error);
     }
 
-    // Atomic rename
-    if (std::rename(tmp_path.c_str(), path.c_str()) != 0) {
+    // Atomic rename: try std::rename first, fall back to CopyFile+Delete
+    if (std::rename(tmp_path.c_str(), file_path.c_str()) != 0) {
+        // Windows: std::rename fails with EEXIST when dest has different type
+        // Use CopyFile + Delete as fallback
+#ifdef _WIN32
+        if (!CopyFileA(tmp_path.c_str(), file_path.c_str(), FALSE)) {
+            std::remove(tmp_path.c_str());
+            return make_error_code(Errc::storage_write_error);
+        }
+        DeleteFileA(tmp_path.c_str());
+#else
         std::remove(tmp_path.c_str());
         return make_error_code(Errc::storage_write_error);
+#endif
     }
 
     return {};

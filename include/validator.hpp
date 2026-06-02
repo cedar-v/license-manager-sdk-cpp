@@ -24,6 +24,8 @@ public:
         const std::string& expected_fingerprint
     );
 
+    void set_public_key(const std::string& public_key_pem);
+
 private:
     struct Impl;
     std::unique_ptr<Impl> pimpl_;

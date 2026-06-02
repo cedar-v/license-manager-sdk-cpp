@@ -144,6 +144,15 @@ ActivationService::activate(const ActivateRequest& request) {
             response.license_key = data.value("license_key", "");
             response.license_file = data.value("license_file", "");
             response.heartbeat_interval = data.value("heartbeat_interval", 0);
+            if (data.contains("public_key") && !data["public_key"].is_null() && !data["public_key"].empty()) {
+                response.public_key = data.value("public_key", "");
+            }
+            // Debug: log license_file length and first few chars
+            fprintf(stderr, "[ACT] license_file length: %zu, first 80: '%.*s'\n",
+                response.license_file.size(), 80, response.license_file.c_str());
+            fprintf(stderr, "[ACT] public_key length: %zu, first 80: '%.*s'\n",
+                response.public_key.value_or("").size(),
+                80, response.public_key.value_or("").c_str());
         }
 
         if (response.license_file.empty()) {

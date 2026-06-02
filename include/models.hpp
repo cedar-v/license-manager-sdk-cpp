@@ -53,6 +53,7 @@ struct ActivateResponse {
     std::string license_key;
     std::string license_file;  // Base64 encoded LicenseEnvelope
     int heartbeat_interval = 0;
+    std::optional<std::string> public_key;  // New RSA public key from server
     std::optional<LicensePayload> payload;
 };
 
