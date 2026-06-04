@@ -1,6 +1,6 @@
 # License Manager C++ SDK
 
-C++ 移植版 SDK，用于与 ThingsPanel License Manager 服务端进行许可证激活、校验和心跳管理。
+C++ 移植版 SDK，用于与Cedar-V License Manager 服务端进行许可证激活、校验和心跳管理。
 
 ## 特性
 
