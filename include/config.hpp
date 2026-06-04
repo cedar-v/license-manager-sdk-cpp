@@ -20,7 +20,8 @@ struct Config {
     std::string authorization_code;
     std::string authorization_code_path;
 
-    // RSA public key (inline PEM or file path)
+    // RSA public key (inline PEM or file path). Optional for first online
+    // activation when the activation API returns a public key.
     std::string public_key_pem;
     std::string public_key_path;
 

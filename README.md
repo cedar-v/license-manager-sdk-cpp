@@ -42,7 +42,7 @@ C:\msys64\mingw64\bin\cmake.exe -G "MinGW Makefiles" ^
 C:\msys64\mingw64\bin\cmake.exe --build build --target basic-example -j4
 ```
 
-> **注意**：`basic-example` 是交互式测试工具，运行前请先在 `examples/basic.cpp` 中修改服务器地址和产品标识。
+> **注意**：`basic-example` 是交互式测试工具，运行前请先在 `examples/basic.cpp` 中修改服务器地址和产品标识。首次在线激活只需要授权码，公钥由激活接口返回并缓存到本地。
 
 ### Windows（Visual Studio）
 
@@ -62,38 +62,24 @@ make -j$(nproc)
 
 ## 快速开始
 
-### 交互式测试工具
+### 最小业务接入示例
 
-`examples/basic.cpp` 提供了一个交互式菜单，方便不写代码也能测试 SDK 功能：
+`examples/basic.cpp` 演示业务程序的典型启动流程：
 
-```
-========== 主菜单 ==========
-  1) 查看当前配置
-  2) 修改配置
-  3) 激活许可证 (activate)
-  4) 校验许可证 (validate)
-  5) 查看许可证信息
-  6) 发送一次心跳
-  7) 启动自动心跳循环
-  8) 暂停心跳
-  9) 恢复心跳
-  0) 退出程序
-=============================
-```
+1. 程序启动时校验本地许可证
+2. 没有有效许可证时，提示用户输入激活码并在线激活
+3. 激活/校验成功后读取许可证内容，用里面的字段控制软件功能
 
-编译后运行 `build/bin/basic-example`，按提示操作即可。运行前请先修改文件中的 `server`、`product`、`version` 和授权码/公钥文件路径。
+编译后运行 `build/bin/basic-example`。运行前请先修改示例中的 `server`、`product`、`version`。
 
-### 1. 准备授权码文件
+首次在线激活只需要激活码。RSA 公钥由激活接口返回，SDK 会缓存到本地。只有离线校验或固定公钥场景，才需要显式配置公钥文件。
 
-在 `license_code/` 目录下放置：
-- `authorization_code.txt` — 授权码
-- `rsa_public_key.pem` — RSA 公钥
-
-### 2. 代码示例
+### 代码示例
 
 ```cpp
 #include <license-manager/client.hpp>
 #include <iostream>
+#include <string>
 
 int main() {
     using namespace license_manager;
@@ -102,15 +88,15 @@ int main() {
     config.server = "https://license.example.com";
     config.product = "my-product";
     config.version = "1.0.0";
-    config.authorization_code_path = "license_code/authorization_code.txt";
-    config.public_key_path = "license_code/rsa_public_key.pem";
+    config.license_file_path = "license_code/license.lic";
 
-    Client::Options opts;
-    opts.on_license_updated = [](const LicensePayload& lic) {
-        std::cout << "License updated: " << lic.license_key << std::endl;
-    };
+    auto result = Client::create(config);
+    if (!result) {
+        std::cout << "请输入激活码: ";
+        std::getline(std::cin, config.authorization_code);
+        result = Client::create(config);
+    }
 
-    auto result = Client::create(config, opts);
     if (!result) {
         std::cerr << "Failed: " << result.error().message() << std::endl;
         return 1;
@@ -120,6 +106,8 @@ int main() {
 
     if (auto lic = client->current_license()) {
         std::cout << "Status: " << lic->status << std::endl;
+        // 业务程序可读取 lic->feature_config / usage_limits / custom_parameters
+        // 来控制模块权限、用量额度、功能开关等。
     }
 
     client->close();
@@ -127,7 +115,7 @@ int main() {
 }
 ```
 
-### 3. 作为子项目引入
+### 作为子项目引入
 
 ```cmake
 cmake_minimum_required(VERSION 3.14)
@@ -140,15 +128,20 @@ target_link_libraries(my_app PRIVATE license-manager-cpp::license-manager)
 
 ## 配置项
 
-### 必填
+### 启动校验必填
 
 | 配置项 | 说明 |
 |--------|------|
 | `server` | License Manager 服务器地址 |
 | `product` | 产品标识符 |
 | `version` | 产品版本 |
-| `authorization_code` / `authorization_code_path` | 授权码 |
-| `public_key_pem` / `public_key_path` | RSA 公钥（PEM 格式） |
+
+### 激活/离线场景
+
+| 配置项 | 说明 |
+|--------|------|
+| `authorization_code` / `authorization_code_path` | 激活码。仅在没有有效本地许可证、需要在线激活时使用 |
+| `public_key_pem` / `public_key_path` | RSA 公钥（PEM 格式）。首次在线激活可不填，由激活接口返回；离线校验需要 |
 
 ### 可选
 
@@ -160,9 +153,20 @@ target_link_libraries(my_app PRIVATE license-manager-cpp::license-manager)
 | `http_timeout_seconds` | `15` | HTTP 超时（秒） |
 | `log_level` | `info` | 日志级别 |
 | `storage_secret` | — | 本地加密密钥 |
-| `hardware_fields` | `["mac","hostname"]` | 指纹采集字段 |
+| `hardware_fields` | `["mac","hostname"]` | 硬件指纹采集字段，用于把许可证绑定到设备 |
 
-硬件指纹支持的字段：`mac`、`hostname`、`cpu`、`memory`。
+硬件指纹字段配置规则：
+
+- 支持字段：`mac`、`hostname`、`cpu`、`memory`
+- 推荐配置：`{"mac", "hostname", "cpu"}`，兼顾稳定性和绑定强度
+- `mac`：网卡 MAC 地址，常用，推荐保留
+- `hostname`：计算机名称，常用，推荐保留
+- `cpu`：CPU 型号，可提高绑定强度
+- `memory`：物理内存大小，硬件变更时更容易导致指纹变化
+- 字段越多绑定越严格；硬件变化后越可能需要重新激活
+- 字段顺序不影响指纹，SDK 内部会按字段名排序后计算
+- 激活后不要随意修改字段集合，否则本地指纹会变化
+- 如果传空数组，SDK 默认使用 `{"mac", "hostname"}`
 
 ### 回调函数
 

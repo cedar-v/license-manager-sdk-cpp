@@ -32,20 +32,6 @@ std::error_code Client::initialize(const Config& config, Options& opts) {
         return err;
     }
 
-    // Resolve public key
-    err = config_.resolve_public_key();
-    if (err) {
-        return err;
-    }
-
-    // Resolve authorization code (online mode only)
-    if (!config_.offline) {
-        err = config_.resolve_authorization_code();
-        if (err) {
-            return err;
-        }
-    }
-
     // Setup logger
     if (opts.logger) {
         logger_ = std::move(opts.logger);
@@ -80,12 +66,19 @@ std::error_code Client::initialize(const Config& config, Options& opts) {
         );
     }
 
-    // Setup validator
-    try {
-        validator_ = std::make_shared<Validator>(config_.public_key_pem);
-    } catch (const std::exception& e) {
-        logger_->errorf("Failed to create validator: %s", e.what());
-        return make_error_code(Errc::validation_invalid_public_key);
+    // Setup validator from configured key when provided. For first online
+    // activation the server can return the public key, so this is optional.
+    if (!config_.public_key_pem.empty() || !config_.public_key_path.empty()) {
+        err = config_.resolve_public_key();
+        if (err) {
+            return err;
+        }
+        try {
+            validator_ = std::make_shared<Validator>(config_.public_key_pem);
+        } catch (const std::exception& e) {
+            logger_->errorf("Failed to create validator: %s", e.what());
+            return make_error_code(Errc::validation_invalid_public_key);
+        }
     }
 
     // Setup activation service
@@ -138,7 +131,19 @@ std::error_code Client::load_existing_license() {
     // Load persisted public key first (for per_license mode)
     std::string stored_pub_key = read_stored_pub_key();
     if (!stored_pub_key.empty()) {
-        validator_->set_public_key(stored_pub_key);
+        if (validator_) {
+            validator_->set_public_key(stored_pub_key);
+        } else {
+            try {
+                validator_ = std::make_shared<Validator>(stored_pub_key);
+            } catch (const std::exception& e) {
+                logger_->warnf("Failed to load stored public key: %s", e.what());
+            }
+        }
+    }
+
+    if (!validator_) {
+        return {};
     }
 
     auto [data, err] = storage_->load();
@@ -160,6 +165,11 @@ std::error_code Client::load_existing_license() {
 }
 
 std::error_code Client::perform_activation() {
+    auto err = config_.resolve_authorization_code();
+    if (err) {
+        return err;
+    }
+
     logger_->infof("Activating with server: %s", config_.server.c_str());
 
     // Build device info — match Python SDK structure: {"hardware": {field: value}}
@@ -182,14 +192,14 @@ std::error_code Client::perform_activation() {
     request.metadata = config_.metadata;
 
     ActivationService service(config_, logger_);
-    auto [response, err] = service.activate(request);
+    auto [response, activate_err] = service.activate(request);
 
-    if (err) {
-        logger_->errorf("Activation failed: %s", err.message().c_str());
+    if (activate_err) {
+        logger_->errorf("Activation failed: %s", activate_err.message().c_str());
         if (on_activation_required_) {
-            on_activation_required_(err.message());
+            on_activation_required_(activate_err.message());
         }
-        return err;
+        return activate_err;
     }
 
     // Apply the license file
@@ -249,7 +259,11 @@ std::error_code Client::apply_license_file_impl(const std::string& base64_licens
     // Apply new public key if provided
     if (new_pub_key && !new_pub_key->empty()) {
         try {
-            validator_->set_public_key(*new_pub_key);
+            if (validator_) {
+                validator_->set_public_key(*new_pub_key);
+            } else {
+                validator_ = std::make_shared<Validator>(*new_pub_key);
+            }
             logger_->infof("Public key updated from server response");
             auto save_err = save_pub_key(*new_pub_key);
             if (save_err) {
@@ -263,6 +277,10 @@ std::error_code Client::apply_license_file_impl(const std::string& base64_licens
         }
     } else {
         logger_->infof("No public key in server response, using initial key");
+    }
+
+    if (!validator_) {
+        return make_error_code(Errc::config_public_key_required);
     }
 
     // Validate and store
