@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 project(license-manager-cpp VERSION 1.0.0 LANGUAGES CXX)
 
-# C++23 required
-set(CMAKE_CXX_STANDARD 23)
+# C++20 required (compatible with UE5.2; also works with C++23 compilers)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -52,6 +52,7 @@ set(LICENSE_MANAGER_SOURCES
     src/validator.cpp
     src/client.cpp
     src/util.cpp
+    src/mwcompat.cpp
 )
 
 # Create static library
@@ -87,6 +88,7 @@ target_compile_options(license-manager PRIVATE
     >
     $<$<CXX_COMPILER_ID:GNU,Clang>:
         -Wall -Wextra -Wpedantic
+        -include ${CMAKE_CURRENT_SOURCE_DIR}/include/mwcompat.h
     >
 )
 
@@ -102,6 +104,7 @@ target_compile_options(basic-example PRIVATE
     >
     $<$<CXX_COMPILER_ID:GNU,Clang>:
         -Wall -Wextra
+        -include ${CMAKE_CURRENT_SOURCE_DIR}/include/mwcompat.h
     >
 )
 

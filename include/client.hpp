@@ -3,7 +3,6 @@
 #include <memory>
 #include <optional>
 #include <functional>
-#include <expected>
 #include "types.hpp"
 #include "errors.hpp"
 #include "config.hpp"
@@ -33,8 +32,8 @@ public:
         PublicKeyUpdatedCallback on_public_key_updated;
     };
 
-    // Factory method returning expected
-    static std::expected<std::unique_ptr<Client>, std::error_code>
+    // Factory method returning Result
+    static Result<std::unique_ptr<Client>>
     create(const Config& config, Options opts = {});
 
     // Destructor

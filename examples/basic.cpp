@@ -102,7 +102,7 @@ static license_manager::Config make_config() {
     return config;
 }
 
-static std::expected<std::unique_ptr<license_manager::Client>, std::error_code>
+static license_manager::Result<std::unique_ptr<license_manager::Client>>
 create_client(license_manager::Config config) {
     auto result = license_manager::Client::create(config);
     if (result) return result;
@@ -120,8 +120,9 @@ create_client(license_manager::Config config) {
     std::getline(std::cin, config.authorization_code);
 
     if (config.authorization_code.empty()) {
-        return std::unexpected(license_manager::make_error_code(
-            license_manager::Errc::config_auth_code_required));
+        return license_manager::Result<std::unique_ptr<license_manager::Client>>::failure(
+            license_manager::make_error_code(
+                license_manager::Errc::config_auth_code_required));
     }
 
     return license_manager::Client::create(config);

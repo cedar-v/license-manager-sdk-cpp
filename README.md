@@ -11,7 +11,7 @@ C++ 移植版 SDK，用于与Cedar-V License Manager 服务端进行许可证激
 
 ## 系统要求
 
-- C++17 编译器（GCC 8+ / Clang 7+ / MSVC 2019+）
+- C++20 编译器（GCC 8+ / Clang 7+ / MSVC 2019+ / UE5.2 原生支持）
 - CMake 3.14+
 - OpenSSL
 - libcurl

@@ -7,16 +7,16 @@
 
 namespace license_manager {
 
-std::expected<std::unique_ptr<Client>, std::error_code>
+Result<std::unique_ptr<Client>>
 Client::create(const Config& config, Options opts) {
     auto client = std::unique_ptr<Client>(new Client());
 
     auto err = client->initialize(config, opts);
     if (err) {
-        return std::unexpected(err);
+        return Result<std::unique_ptr<Client>>::failure(err);
     }
 
-    return client;
+    return Result<std::unique_ptr<Client>>::success(std::move(client));
 }
 
 Client::~Client() {

@@ -3,6 +3,7 @@
 #include <system_error>
 #include <string>
 #include <cstring>
+#include <optional>
 
 namespace license_manager {
 
@@ -155,6 +156,47 @@ inline std::error_code make_error_code(Errc e) {
 inline std::error_code make_error_code(Errc e, const std::string& /*message*/) {
     return std::error_code(static_cast<int>(e), GetErrorCategory());
 }
+
+template<typename T>
+class Result {
+public:
+    Result() : has_value_(false), error_(make_error_code(Errc::success)) {}
+
+    static Result success(T val) {
+        Result r;
+        r.has_value_ = true;
+        r.value_ = std::move(val);
+        return r;
+    }
+
+    static Result failure(std::error_code err) {
+        Result r;
+        r.has_value_ = false;
+        r.error_ = err;
+        return r;
+    }
+
+    bool has_value() const { return has_value_; }
+    explicit operator bool() const { return has_value_; }
+
+    T& value() & { return *value_; }
+    const T& value() const & { return *value_; }
+    T&& value() && { return std::move(*value_); }
+
+    std::error_code error() const { return error_; }
+
+    T& operator*() & { return *value_; }
+    const T& operator*() const & { return *value_; }
+    T&& operator*() && { return std::move(*value_); }
+
+    T* operator->() { return &*value_; }
+    const T* operator->() const { return &*value_; }
+
+private:
+    bool has_value_;
+    std::optional<T> value_;
+    std::error_code error_;
+};
 
 } // namespace license_manager
 
