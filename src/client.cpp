@@ -376,7 +376,7 @@ Client::validate_and_store(const std::vector<uint8_t>& data) {
     std::vector<uint8_t> normalized = normalize_license_bytes(data);
 
     // Verify
-    auto [payload, err] = validator_->verify(normalized, fingerprint_);
+    auto [payload, err] = validator_->verify_license(normalized, fingerprint_);
     if (err) {
         logger_->warnf("License verification failed: %s", err.message().c_str());
         return {{}, err};

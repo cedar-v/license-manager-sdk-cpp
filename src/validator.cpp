@@ -206,7 +206,7 @@ static bool verify_rsa_pss_sha256(EVP_PKEY* pkey,
 }
 
 std::pair<LicensePayload, std::error_code>
-Validator::verify(const std::vector<uint8_t>& license_data, const std::string& expected_fingerprint) {
+Validator::verify_license(const std::vector<uint8_t>& license_data, const std::string& expected_fingerprint) {
     if (license_data.empty()) {
         return {{}, make_error_code(Errc::validation_empty_license)};
     }
@@ -380,12 +380,12 @@ Validator::verify(const std::vector<uint8_t>& license_data, const std::string& e
 }
 
 std::pair<LicensePayload, std::error_code>
-Validator::verify_base64(const std::string& base64_license, const std::string& expected_fingerprint) {
+Validator::verify_license_base64(const std::string& base64_license, const std::string& expected_fingerprint) {
     std::vector<uint8_t> decoded;
     if (!base64_decode(base64_license, decoded)) {
         return {{}, make_error_code(Errc::validation_decode_error)};
     }
-    return verify(decoded, expected_fingerprint);
+    return verify_license(decoded, expected_fingerprint);
 }
 
 void Validator::set_public_key(const std::string& public_key_pem) {

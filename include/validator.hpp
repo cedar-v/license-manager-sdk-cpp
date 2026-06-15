@@ -14,12 +14,12 @@ public:
     explicit Validator(const std::string& public_key_pem);
     ~Validator();
 
-    std::pair<LicensePayload, std::error_code> verify(
+    std::pair<LicensePayload, std::error_code> verify_license(
         const std::vector<uint8_t>& license_data,
         const std::string& expected_fingerprint
     );
 
-    std::pair<LicensePayload, std::error_code> verify_base64(
+    std::pair<LicensePayload, std::error_code> verify_license_base64(
         const std::string& base64_license,
         const std::string& expected_fingerprint
     );
