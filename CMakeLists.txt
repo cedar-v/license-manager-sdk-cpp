@@ -108,6 +108,19 @@ target_compile_options(basic-example PRIVATE
     >
 )
 
+# Example: fingerprint-only (standalone API demo)
+add_executable(fingerprint-example examples/fingerprint_only.cpp)
+target_link_libraries(fingerprint-example PRIVATE license-manager-cpp::license-manager)
+target_compile_options(fingerprint-example PRIVATE
+    $<$<CXX_COMPILER_ID:MSVC>:
+        /W4
+    >
+    $<$<CXX_COMPILER_ID:GNU,Clang>:
+        -Wall -Wextra
+        -include ${CMAKE_CURRENT_SOURCE_DIR}/include/mwcompat.h
+    >
+)
+
 # Copy license_code directory to build directory so example can find it
 file(COPY ${CMAKE_SOURCE_DIR}/license_code DESTINATION ${CMAKE_BINARY_DIR})
 

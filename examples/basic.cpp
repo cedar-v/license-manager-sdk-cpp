@@ -11,6 +11,7 @@
 
 #include <client.hpp>
 #include <config.hpp>
+#include <hardware.hpp>
 
 #include <any>
 #include <chrono>
@@ -71,7 +72,7 @@ static license_manager::Config make_config() {
     license_manager::Config config;
 
     // TODO: 对接时改成你的授权服务地址、产品标识和软件版本。
-    config.server = "http://lm-e.cedar-v.com";
+    config.server = "https://lic.cedar-v.com";
     config.product = "my-product";
     config.version = "1.0.0";
 
@@ -129,6 +130,19 @@ create_client(license_manager::Config config) {
 }
 
 int main() {
+    // 先打印机器指纹，方便核对
+    std::cout << "=== 机器指纹 ===\n";
+    auto [fp, details, err] = license_manager::get_machine_fingerprint();
+    if (err) {
+        std::cerr << "获取指纹失败: " << err.message() << "\n";
+    } else {
+        std::cout << "指纹: " << fp << "\n";
+        for (const auto& [key, value] : details) {
+            std::cout << "  " << key << ": " << value << "\n";
+        }
+    }
+    std::cout << "\n";
+
     auto result = create_client(make_config());
     if (!result) {
         std::cerr << "授权校验/激活失败: " << result.error().message() << "\n";

@@ -34,6 +34,8 @@ pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-openssl m
 C:\msys64\mingw64\bin\cmake.exe -G "MinGW Makefiles" -S . -B build
 C:\msys64\mingw64\bin\cmake.exe --build build --target basic-example -j4
 
+C:\msys64\mingw64\bin\cmake.exe -G "MinGW Makefiles" -S . -B build
+C:\msys64\mingw64\bin\cmake.exe --build build --target fingerprint-example -j4
 # 方式二：指定 MSYS2 的 GCC 编译器（解决 stdlib.h 找不到的问题）
 C:\msys64\mingw64\bin\cmake.exe -G "MinGW Makefiles" ^
     -DCMAKE_CXX_COMPILER=C:/msys64/mingw64/bin/g++.exe ^

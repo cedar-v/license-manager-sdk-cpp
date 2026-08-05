@@ -91,6 +91,12 @@ HeartbeatService::send(const HeartbeatRequest& request) {
     curl_easy_setopt(pimpl_->curl, CURLOPT_CONNECTTIMEOUT, 5L);
     curl_easy_setopt(pimpl_->curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(pimpl_->curl, CURLOPT_SSL_VERIFYHOST, 2L);
+#ifdef _WIN32
+    // Use the Windows root certificate store when libcurl is built with an
+    // OpenSSL-compatible TLS backend. This keeps HTTPS verification enabled
+    // without requiring the application to ship or configure a CA bundle.
+    curl_easy_setopt(pimpl_->curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+#endif
 
     // Set headers
     struct curl_slist* header_list = nullptr;
