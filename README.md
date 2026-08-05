@@ -145,6 +145,21 @@ target_link_libraries(my_app PRIVATE license-manager-cpp::license-manager)
 | `authorization_code` / `authorization_code_path` | 激活码。仅在没有有效本地许可证、需要在线激活时使用 |
 | `public_key_pem` / `public_key_path` | RSA 公钥（PEM 格式）。首次在线激活可不填，由激活接口返回；离线校验需要 |
 
+### 内置固定公钥
+
+如果业务程序要把公钥随对接代码发布，不要设置 `public_key_path`，而是直接传入完整的 PEM 文本，并打开 `pin_public_key`：
+
+```cpp
+constexpr const char kProductPublicKeyPem[] = R"(-----BEGIN PUBLIC KEY-----
+...完整的产品 RSA 公钥...
+-----END PUBLIC KEY-----)";
+
+config.public_key_pem = kProductPublicKeyPem;
+config.pin_public_key = true;
+```
+
+开启后，SDK 不会读取同目录的 `.pubkey` 缓存，也不会用激活接口返回的公钥替换代码中的公钥。许可证文件仍会正常缓存和更新。公钥本身不是秘密；此做法的作用是将验签信任根固定在应用程序中，避免本地公钥文件被替换。
+
 ### 可选
 
 | 配置项 | 默认值 | 说明 |

@@ -21,6 +21,22 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
+namespace {
+// Replace the value below with the complete PEM public key issued for your
+// product. A public key is not secret, but embedding it prevents a local
+// .pubkey file from becoming the application's trust source.
+constexpr const char kProductPublicKeyPem[] = R"(-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxjGe1+uq5RaUFQPUVH9+
+D03uZ0F1Luf54QYV6yDOzWFbqyZ5izIgtXCxpgAEbongSnU0BizRIHX5prMRpBNe
+S56AmvZu2spKqF0JvhKzi7XcVyHjVip9zTbZx+T5EIrBcZaQ3Y6sXUHX1vl6tB+M
+hDOJoAXK7Z0s047qHFJw4+CRVBKNN5i3FDeks9vpqnWz6uWNXwG4Mb3pvA8/xVm6
+yy5RBo5c932ibtejmztD1bbi63kCOoKYXVHW+nOU25/cpN5IllHryDS9UwoPpXJk
+Qc/iX9hX28N5fWcEFuRFHM7Khnc2vJIzBbq9BWKgWoju+OZ7aEuxIs4t4RQywSEl
+xQIDAQAB
+-----END PUBLIC KEY-----
+)";
+}  // namespace
+
 static std::string any_to_string(const std::any& value) {
     if (value.type() == typeid(std::string)) return std::any_cast<std::string>(value);
     if (value.type() == typeid(const char*)) return std::any_cast<const char*>(value);
@@ -72,7 +88,7 @@ static void print_license_info(const license_manager::LicensePayload& license) {
     std::cout << "==============================\n";
 }
 
-static license_manager::Config make_config() {
+static license_manager::Config make_config(const char* public_key_pem) {
     license_manager::Config config;
 
     // TODO: 对接时改成你的授权服务地址、产品标识和软件版本。
@@ -82,6 +98,11 @@ static license_manager::Config make_config() {
 
     // 本地许可证保存位置。首次激活成功后，SDK 会把许可证保存到这里。
     config.license_file_path = "license_code/license.lic";
+
+    // Pass the PEM text from the integration code, not a public-key file path.
+    // pin_public_key keeps cached and server-returned keys from replacing it.
+    config.public_key_pem = public_key_pem;
+    config.pin_public_key = true;
 
     // 不在这里写激活码。启动后如果没有有效许可证，再让用户输入。
     // 如果你的程序想从文件读取激活码，也可以设置：
@@ -147,7 +168,7 @@ int main() {
     }
     std::cout << "\n";
 
-    auto result = create_client(make_config());
+    auto result = create_client(make_config(kProductPublicKeyPem));
     if (!result) {
         std::cerr << "授权校验/激活失败: " << result.error().message() << "\n";
         return 1;

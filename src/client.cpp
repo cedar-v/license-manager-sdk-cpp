@@ -68,6 +68,10 @@ std::error_code Client::initialize(const Config& config, Options& opts) {
 
     // Setup validator from configured key when provided. For first online
     // activation the server can return the public key, so this is optional.
+    if (config_.pin_public_key && config_.public_key_pem.empty()) {
+        logger_->error("Pinned public key mode requires public_key_pem");
+        return make_error_code(Errc::config_public_key_required);
+    }
     if (!config_.public_key_pem.empty() || !config_.public_key_path.empty()) {
         err = config_.resolve_public_key();
         if (err) {
@@ -129,7 +133,12 @@ std::error_code Client::initialize(const Config& config, Options& opts) {
 
 std::error_code Client::load_existing_license() {
     // Load persisted public key first (for per_license mode)
-    std::string stored_pub_key = read_stored_pub_key();
+    std::string stored_pub_key;
+    if (!config_.pin_public_key) {
+        stored_pub_key = read_stored_pub_key();
+    } else {
+        logger_->info("Using pinned public key; ignoring cached public key");
+    }
     if (!stored_pub_key.empty()) {
         if (validator_) {
             validator_->set_public_key(stored_pub_key);
@@ -256,8 +265,9 @@ std::error_code Client::apply_license_file_impl(const std::string& base64_licens
         return decode_err;
     }
 
-    // Apply new public key if provided
-    if (new_pub_key && !new_pub_key->empty()) {
+    // Apply a new public key only when the application has not pinned its
+    // configured key as the trust anchor.
+    if (new_pub_key && !new_pub_key->empty() && !config_.pin_public_key) {
         try {
             if (validator_) {
                 validator_->set_public_key(*new_pub_key);
@@ -275,6 +285,8 @@ std::error_code Client::apply_license_file_impl(const std::string& base64_licens
         } catch (const std::exception& e) {
             logger_->warnf("Failed to update validator public key: %s", e.what());
         }
+    } else if (new_pub_key && !new_pub_key->empty()) {
+        logger_->info("Ignoring public key from server response because the configured key is pinned");
     } else {
         logger_->infof("No public key in server response, using initial key");
     }

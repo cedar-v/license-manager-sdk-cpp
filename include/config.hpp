@@ -25,6 +25,11 @@ struct Config {
     std::string public_key_pem;
     std::string public_key_path;
 
+    // Use public_key_pem as a fixed trust anchor. When enabled, a cached key
+    // and keys returned by the server will not replace it. public_key_pem must
+    // be provided when this option is enabled.
+    bool pin_public_key = false;
+
     // License file for offline mode
     std::string license_file_path;
 
