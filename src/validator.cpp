@@ -18,6 +18,42 @@ using json = nlohmann::json;
 
 namespace license_manager {
 
+// Keep simple JSON values ergonomic for SDK consumers. Objects and arrays stay
+// as json values so that nested configuration is preserved without loss.
+static std::any json_to_any(const json& value) {
+    if (value.is_string()) {
+        return value.get<std::string>();
+    }
+    if (value.is_boolean()) {
+        return value.get<bool>();
+    }
+    if (value.is_number_unsigned()) {
+        return value.get<uint64_t>();
+    }
+    if (value.is_number_integer()) {
+        return value.get<int64_t>();
+    }
+    if (value.is_number_float()) {
+        return value.get<double>();
+    }
+    return value;
+}
+
+static void parse_config_map(const json& payload_json,
+                             const char* field,
+                             std::map<std::string, std::any>& target) {
+    const auto it = payload_json.find(field);
+    if (it == payload_json.end() || !it->is_object()) {
+        return;
+    }
+
+    for (const auto& [key, value] : it->items()) {
+        if (!value.is_null()) {
+            target[key] = json_to_any(value);
+        }
+    }
+}
+
 struct Validator::Impl {
     EVP_PKEY* pkey = nullptr;
 
@@ -304,6 +340,8 @@ Validator::verify_license(const std::vector<uint8_t>& license_data, const std::s
     try {
         json payload_json = json::parse(data_str);
 
+        payload.product = payload_json.value("product", "");
+        payload.version = payload_json.value("version", "");
         payload.license_key = payload_json.value("license_key", "");
         payload.authorization_code = payload_json.value("authorization_code", "");
         payload.authorization_code_id = payload_json.value("authorization_code_id", "");
@@ -311,6 +349,9 @@ Validator::verify_license(const std::vector<uint8_t>& license_data, const std::s
         payload.status = payload_json.value("status", "");
         payload.deployment_type = payload_json.value("deployment_type", "");
         payload.max_activations = payload_json.value("max_activations", 0);
+        parse_config_map(payload_json, "custom_parameters", payload.custom_parameters);
+        parse_config_map(payload_json, "feature_config", payload.feature_config);
+        parse_config_map(payload_json, "usage_limits", payload.usage_limits);
 
         // Parse dates
         auto parse_time = [](const json& j) -> std::chrono::system_clock::time_point {
@@ -345,14 +386,16 @@ Validator::verify_license(const std::vector<uint8_t>& license_data, const std::s
 
         // Store extras
         for (auto& [key, value] : payload_json.items()) {
-            if (key != "license_key" && key != "authorization_code" &&
+            if (key != "product" && key != "version" &&
+                key != "license_key" && key != "authorization_code" &&
                 key != "authorization_code_id" && key != "hardware_fingerprint" &&
                 key != "status" && key != "deployment_type" &&
                 key != "max_activations" && key != "end_date" &&
                 key != "start_date" && key != "activated_at" &&
-                key != "generated_at") {
+                key != "generated_at" && key != "custom_parameters" &&
+                key != "feature_config" && key != "usage_limits") {
                 if (!value.is_null()) {
-                    payload.extras[key] = value;
+                    payload.extras[key] = json_to_any(value);
                 }
             }
         }

@@ -18,6 +18,7 @@
 #include <ctime>
 #include <iostream>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <string>
 
 static std::string any_to_string(const std::any& value) {
@@ -26,7 +27,10 @@ static std::string any_to_string(const std::any& value) {
     if (value.type() == typeid(bool)) return std::any_cast<bool>(value) ? "true" : "false";
     if (value.type() == typeid(int)) return std::to_string(std::any_cast<int>(value));
     if (value.type() == typeid(long)) return std::to_string(std::any_cast<long>(value));
+    if (value.type() == typeid(int64_t)) return std::to_string(std::any_cast<int64_t>(value));
+    if (value.type() == typeid(uint64_t)) return std::to_string(std::any_cast<uint64_t>(value));
     if (value.type() == typeid(double)) return std::to_string(std::any_cast<double>(value));
+    if (value.type() == typeid(nlohmann::json)) return std::any_cast<nlohmann::json>(value).dump();
     return "<unsupported>";
 }
 
