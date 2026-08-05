@@ -340,7 +340,7 @@ Validator::verify_license(const std::vector<uint8_t>& license_data, const std::s
     try {
         json payload_json = json::parse(data_str);
 
-        payload.product = payload_json.value("product", "");
+        payload.product_code = payload_json.value("product_code", "");
         payload.version = payload_json.value("version", "");
         payload.license_key = payload_json.value("license_key", "");
         payload.authorization_code = payload_json.value("authorization_code", "");
@@ -386,7 +386,7 @@ Validator::verify_license(const std::vector<uint8_t>& license_data, const std::s
 
         // Store extras
         for (auto& [key, value] : payload_json.items()) {
-            if (key != "product" && key != "version" &&
+            if (key != "product_code" && key != "version" &&
                 key != "license_key" && key != "authorization_code" &&
                 key != "authorization_code_id" && key != "hardware_fingerprint" &&
                 key != "status" && key != "deployment_type" &&

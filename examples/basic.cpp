@@ -54,7 +54,7 @@ static void print_any_map(const char* title, const std::map<std::string, std::an
 
 static void print_license_info(const license_manager::LicensePayload& license) {
     std::cout << "\n========== 当前许可证 ==========\n";
-    std::cout << "产品:       " << license.product << "\n";
+    std::cout << "产品编号:   " << license.product_code << "\n";
     std::cout << "版本:       " << license.version << "\n";
     std::cout << "许可证Key:  " << license.license_key << "\n";
     std::cout << "状态:       " << license.status << "\n";

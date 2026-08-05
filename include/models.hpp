@@ -10,7 +10,7 @@ namespace license_manager {
 
 // LicensePayload describes the decoded content of a license file
 struct LicensePayload {
-    std::string product;
+    std::string product_code;
     std::string version;
     std::string license_key;
     std::string authorization_code;
